@@ -13,11 +13,7 @@ logging.basicConfig(
 )
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-
-# သင့် OCR.space API Key
 OCR_API_KEY = "K88605900588957"
-
-# သင့် Channel ရဲ့ Chat ID
 CHANNEL_CHAT_ID = "-1003790274194"
 
 if not TELEGRAM_TOKEN:
@@ -36,7 +32,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo_file = await update.message.photo[-1].get_file()
         image_bytes = await photo_file.download_as_bytearray()
         
-        # OCR.space API သို့ စာလုံးဖတ်ရန် ပို့ပေးခြင်း (OCREngine: 2 ထည့်သွင်းထားပါသည်)
+        # OCR.space API သို့ စာလုံးဖတ်ရန် ပို့ပေးခြင်း (Engine 2 ဖြင့် စာလုံးအသေးများကိုပါ ဖတ်ရှုမည်)
         response = requests.post(
             'https://api.ocr.space/parse/image',
             files={'filename.jpg': io.BytesIO(image_bytes)},
@@ -44,9 +40,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'apikey': OCR_API_KEY,
                 'language': 'eng',
                 'isOverlayRequired': False,
-                'OCREngine': 2,        # စာလုံးသေးသေးလေးတွေကိုပါ တိကျစွာ ဖတ်ပေးနိုင်သည်
-                'detectOrientation': True,
-                'scale': True
+                'OCREngine': 2,
+                'scale': True,
+                'isTable': True
             },
             timeout=30
         )
@@ -57,19 +53,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parsed_results = result.get('ParsedResults', [])
         detected_text = ""
         if parsed_results:
-            detected_text = parsed_results[0].get('ParsedText', '').upper()
+            detected_text = parsed_results[0].get('ParsedText', '')
             
         logging.info(f"Detected Text: {detected_text}")
         
-        # 'PPG' စာတန်း ပါမပါ စစ်ဆေးခြင်း
-        if "PPG" in detected_text:
+        text_upper = detected_text.upper()
+        
+        # PPG သို့မဟုတ် PPG ADS ပါဝင်ခြင်း ရှိ/မရှိ စစ်ဆေးခြင်း
+        # OCR က G ကို C, 6 သို့မဟုတ် Q လို့ မှားဖတ်မိရင်လည်း လက်ခံမည်
+        valid_keywords = [
+            "PPG", "PPG ADS", "PPGADS", "P.P.G", 
+            "PPC", "PPC ADS", "PP6", "PP6 ADS"
+        ]
+        
+        is_matched = any(keyword in text_upper for keyword in valid_keywords)
+
+        if is_matched:
             # ၅ မိနစ် သက်တမ်းရှိပြီး ၁ ယောက်ပဲ ဝင်လို့ရမည့် One-time Invite Link ဖန်တီးခြင်း
             expire_timestamp = int(time.time()) + 300  
             
             single_use_link = await context.bot.create_chat_invite_link(
                 chat_id=CHANNEL_CHAT_ID,
-                member_limit=1,           # လူ ၁ ယောက်သာ ဝင်ခွင့်ပြုမည်
-                expire_date=expire_timestamp # ၅ မိနစ်ကျော်ပါက Link ပျက်မည်
+                member_limit=1,           
+                expire_date=expire_timestamp 
             )
 
             await status_msg.edit_text(
@@ -81,17 +87,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await status_msg.edit_text(
-                "❌ PPG Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG' သို့မဟုတ် 'Forwarded from PPG' စာတန်း ပါသော ပုံကို ပြန်လည် ပို့ပေးပါ။"
+                "❌ PPG/PPG Ads Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG Ads' စာတန်း တိကျစွာ ပါရှိသည့် ပုံကို ပြန်လည် ပို့ပေးပါ။"
             )
             
     except Exception as e:
         logging.error(f"Error processing image: {e}")
-        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ (Bot အား Channel တွင် Admin ခန့်ထားပြီး 'Add Users' Permission ပေးထားရန် လိုအပ်ပါသည်)")
+        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ ပုံကို ပြန်လည် ပို့ပေးပါ။")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     
-    print("Bot is running with OCR Engine & One-time Link system...")
+    print("Bot is running with PPG & PPG Ads Detector...")
     app.run_polling()
