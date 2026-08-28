@@ -8,13 +8,22 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Forward လုပ်လိုက်သော Channel သို့မဟုတ် Message ၏ Chat ID ကို ပြသပေးမည်
-    if update.message.forward_from_chat:
-        chat_id = update.message.forward_from_chat.id
-        title = update.message.forward_from_chat.title
-        await update.message.reply_text(f"📌 Channel Name: {title}\n🆔 Channel ID: `{chat_id}`", parse_mode="Markdown")
+    if not update.message:
+        return
+
+    # Message ရဲ့ အချက်အလက်များမှ Channel ID ကို ရှာဖွေခြင်း
+    origin = getattr(update.message, 'forward_origin', None)
+    
+    if origin and getattr(origin, 'type', None) == 'channel':
+        chat_id = origin.chat.id
+        title = origin.chat.title
+        await update.message.reply_text(
+            f"📌 **Channel Name:** {title}\n"
+            f"🆔 **Channel ID:** `{chat_id}`",
+            parse_mode="Markdown"
+        )
     else:
-        await update.message.reply_text("ကျေးဇူးပြု၍ သင့် Channel ထဲမှ Post တစ်ခုခုကို ဒီ Bot ဆီသို့ Forward ပို့ပေးပါ။")
+        await update.message.reply_text("ကျေးဇူးပြု၍ သင့် Channel ထဲမှ Post တစ်ခုခုကို ဒီ Bot ဆီသို့ Forward ပြန်ပို့ပေးပါ။")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
