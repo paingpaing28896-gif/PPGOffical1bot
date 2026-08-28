@@ -6,14 +6,18 @@ import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging Configuration
+# Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+
+# သင့် OCR.space API Key
 OCR_API_KEY = "K88605900588957"
+
+# သင့် Channel ရဲ့ Chat ID
 CHANNEL_CHAT_ID = "-1003790274194"
 
 if not TELEGRAM_TOKEN:
@@ -25,14 +29,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    status_msg = await update.message.reply_text("Screenshot ထဲရှိ စာသားများကို အသေးစိတ် စစ်ဆေးနေပါသည်...")
+    status_msg = await update.message.reply_text("Screenshot ထဲရှိ စာသားများကို စစ်ဆေးနေပါသည်...")
     
     try:
-        # Telegram မှ ပုံဒေါင်းလုဒ်ဆွဲခြင်း
+        # Telegram ထံမှ ပုံဒေါင်းလုဒ်ဆွဲခြင်း
         photo_file = await update.message.photo[-1].get_file()
         image_bytes = await photo_file.download_as_bytearray()
         
-        # OCR.space API သို့ Engine 2 (Advanced Engine) သုံး၍ ပို့ပေးခြင်း
+        # OCR.space API သို့ စာလုံးဖတ်ရန် ပို့ပေးခြင်း (OCREngine: 2 ထည့်သွင်းထားပါသည်)
         response = requests.post(
             'https://api.ocr.space/parse/image',
             files={'filename.jpg': io.BytesIO(image_bytes)},
@@ -40,7 +44,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'apikey': OCR_API_KEY,
                 'language': 'eng',
                 'isOverlayRequired': False,
-                'OCREngine': 2,        # စာလုံးသေးသေးလေးတွေကိုပါ ဖတ်ပေးနိုင်ရန် Engine 2 ပြောင်းထားသည်
+                'OCREngine': 2,        # စာလုံးသေးသေးလေးတွေကိုပါ တိကျစွာ ဖတ်ပေးနိုင်သည်
                 'detectOrientation': True,
                 'scale': True
             },
@@ -49,6 +53,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         result = response.json()
         
+        # စာလုံးဖတ်ရှုရရှိသည့် ရလဒ်များ
         parsed_results = result.get('ParsedResults', [])
         detected_text = ""
         if parsed_results:
@@ -63,10 +68,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             single_use_link = await context.bot.create_chat_invite_link(
                 chat_id=CHANNEL_CHAT_ID,
-                member_limit=1,           
-                expire_date=expire_timestamp 
+                member_limit=1,           # လူ ၁ ယောက်သာ ဝင်ခွင့်ပြုမည်
+                expire_date=expire_timestamp # ၅ မိနစ်ကျော်ပါက Link ပျက်မည်
             )
-            
+
             await status_msg.edit_text(
                 "✅ စစ်ဆေးမှု အောင်မြင်ပါသည်။ PPG Post ကို ရှဲထားတာ မှန်ကန်ပါသည်။\n\n"
                 "🎁 သင်တောင်းဆိုထားသော ဝင်ရောက်ရန် Link ဖြစ်ပါတယ် -\n"
@@ -81,12 +86,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except Exception as e:
         logging.error(f"Error processing image: {e}")
-        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ ပုံကို ပြန်လည် ပို့ပေးပါ။")
+        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ (Bot အား Channel တွင် Admin ခန့်ထားပြီး 'Add Users' Permission ပေးထားရန် လိုအပ်ပါသည်)")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     
-    print("Bot is running with OCR Engine 2...")
+    print("Bot is running with OCR Engine & One-time Link system...")
     app.run_polling()
