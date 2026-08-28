@@ -7,7 +7,7 @@ import io
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging setup
+# Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -16,9 +16,9 @@ logging.basicConfig(
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 if not TELEGRAM_TOKEN:
-    raise ValueError("TELEGRAM_TOKEN အဆင်မပြေပါ။")
+    raise ValueError("TELEGRAM_TOKEN မရှိပါ။")
 
-# OCR Reader ကို စတင် အသက်သွင်းခြင်း (စာလုံးအပြည့်အစုံဖတ်နိုင်ရန်)
+# EasyOCR Engine အား စတင်ခြင်း (အင်္ဂလိပ်စာလုံးများ ဖတ်ရှုရန်)
 reader = easyocr.Reader(['en'], gpu=False)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -27,33 +27,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    status_msg = await update.message.reply_text("Screenshot ထဲရှိ စာသားများကို အတိအကျ စစ်ဆေးနေပါသည်...")
+    status_msg = await update.message.reply_text("Screenshot ထဲရှိ စာသားများကို စစ်ဆေးနေပါသည်...")
     
     try:
-        # Telegram မှ ပုံကို ရယူခြင်း
+        # Telegram ထံမှ ပုံဒေါင်းလုဒ်ဆွဲခြင်း
         photo_file = await update.message.photo[-1].get_file()
         image_bytes = await photo_file.download_as_bytearray()
         
-        # PIL Image သို့ ပြောင်းလဲခြင်း
+        # Image Processing
         image = Image.open(io.BytesIO(image_bytes))
         image_np = np.array(image)
         
-        # EasyOCR ဖြင့် ပုံထဲရှိ စာလုံးအားလုံးကို ဖတ်ယူခြင်း
+        # EasyOCR ဖြင့် ပုံထဲရှိ စာသားအားလုံးကို ဖတ်ယူခြင်း (AI Safety ဖြင့် ငြင်းပယ်ခြင်း မရှိပါ)
         ocr_results = reader.readtext(image_np, detail=0)
         full_text = " ".join(ocr_results).upper()
         
         logging.info(f"Detected Text: {full_text}")
         
-        # 'PPG' သို့မဟုတ် 'PPG ADS' စာတန်း ပါမပါ တိုက်ရိုက် စစ်ဆေးခြင်း
-        if "PPG" in full_text or "PPG ADS" in full_text:
+        # 'PPG' စာသား ပါမပါ စစ်ဆေးခြင်း
+        if "PPG" in full_text:
             await status_msg.edit_text(
                 "✅ စစ်ဆေးမှု အောင်မြင်ပါသည်။ PPG Post ကို ရှဲထားတာ မှန်ကန်ပါသည်။\n\n"
-                "🎁 သင်တောင်းဆိုထားသော Link/Content ဖြစ်ပါတယ် -\n"
+                "🎁 သင်တောင်းဆိုထားသော Link ဖြစ်ပါတယ် -\n"
                 "https://t.me/+8XdZgmVwrvwyZGVl"
             )
         else:
             await status_msg.edit_text(
-                "❌ PPG Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG' သို့မဟုတ် 'Forwarded from PPG' စာတန်း အပြည့်အစုံပါသော ပုံကို ပြန်လည် ပို့ပေးပါ။"
+                "❌ PPG Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG' သို့မဟုတ် 'Forwarded from PPG' စာတန်း ပါသော ပုံကို ပြန်လည် ပို့ပေးပါ။"
             )
             
     except Exception as e:
