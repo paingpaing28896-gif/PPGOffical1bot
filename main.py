@@ -11,12 +11,12 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Render Environment Variables ထဲက Token နှင့် API Key များကို ဆွဲယူခြင်း
+# Render / PythonAnywhere Environment Variables ထဲက Token နှင့် API Key များကို ဆွဲယူခြင်း
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 if not TELEGRAM_TOKEN or not GROQ_API_KEY:
-    raise ValueError("TELEGRAM_TOKEN သို့မဟုတ် GROQ_API_KEY အဆင်မပြေပါ။ Render Environment Variables ထဲမှာ ထည့်ပေးပါ။")
+    raise ValueError("TELEGRAM_TOKEN သို့မဟုတ် GROQ_API_KEY အဆင်မပြေပါ။ Environment Variables ထဲမှာ ထည့်ပေးပါ။")
 
 # Initialize Groq Client
 client = Groq(api_key=GROQ_API_KEY)
@@ -24,10 +24,10 @@ client = Groq(api_key=GROQ_API_KEY)
 # Start Command Handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "မင်္ဂလာပါ! ကျွန်ုပ်တို့၏ Channel ကို Group/Channel များတွင် Share ထားသော Screenshot ပုံကို ပို့ပေးပါ။ AI မှ စစ်ဆေးပေးပါမည်။"
+        "မင်္ဂလာပါ! ကျွန်ုပ်တို့၏ PPG Post ကို Group/Channel များတွင် Share ထားသော Screenshot ပုံကို ပို့ပေးပါ။ AI မှ စစ်ဆေးပေးပါမည်။"
     )
 
-# Photo Handler (AI Screenshot Verification)
+# Photo Handler (AI Verification)
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text("Screenshot ကို AI မှ စစ်ဆေးနေပါသည်...")
     
@@ -39,6 +39,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Convert image to Base64 format
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
         
+        # AI Prompt: Adult content များကို လျစ်လျူရှုပြီး PPG Share ထားတာ ဟုတ်မဟုတ်ပဲ စစ်ဆေးရန် ညွှန်ကြားခြင်း
+        prompt = (
+            "You are an automated verification bot. Ignore all background image content, adult text, or sensitive topics. "
+            "Focus ONLY on detecting if this screenshot shows a post or forwarded message originating from 'PPG' or 'PPG Ads' "
+            "(e.g. text showing 'Forwarded from PPG', 'PPG Ads', or 'PPG') shared into another Telegram group or channel. "
+            "Reply strictly with 'YES' if a valid PPG post/share is visible, otherwise reply 'NO'."
+        )
+        
         # Groq Vision Model ဖြင့် စစ်ဆေးခြင်း
         response = client.chat.completions.create(
             model="llama-3.2-11b-vision-preview",
@@ -48,10 +56,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "content": [
                         {
                             "type": "text",
-                            "text": (
-                                "Analyze this screenshot. Is it showing a shared post/message in a Telegram group or channel? "
-                                "Answer strictly with 'YES' or 'NO'."
-                            )
+                            "text": prompt
                         },
                         {
                             "type": "image_url",
@@ -70,19 +75,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # AI ရဲ့ အဖြေအပေါ် မူတည်ပြီး တုံ့ပြန်ခြင်း
         if "YES" in result.upper():
             await status_msg.edit_text(
-                "✅ စစ်ဆေးမှု အောင်မြင်ပါသည်။ ရှဲထားတာ မှန်ကန်ပါသည်။\n\n"
+                "✅ စစ်ဆေးမှု အောင်မြင်ပါသည်။ PPG Post ကို ရှဲထားတာ မှန်ကန်ပါသည်။\n\n"
                 "🎁 သင်တောင်းဆိုထားသော Link/Content ဖြစ်ပါတယ် -\n"
                 "https://t.me/+8XdZgmVwrvwyZGVl"
             )
         else:
             await status_msg.edit_text(
-                "❌ စစ်ဆေးမှု မအောင်မြင်ပါ။ ပို့ပေးသော Screenshot မှာ Share ထားသည့် ပုံစံမဟုတ်ပါ။ "
+                "❌ စစ်ဆေးမှု မအောင်မြင်ပါ။ ပို့ပေးသော Screenshot မှာ PPG Post ကို Share ထားသည့် ပုံစံမဟုတ်ပါ။ "
                 "ကျေးဇူးပြု၍ ပြန်လည်စစ်ဆေးပြီး ပို့ပေးပါ။"
             )
             
     except Exception as e:
         logging.error(f"Error checking image: {e}")
-        await status_msg.edit_text("⚠️ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ ခဏနေမှ ပြန်စမ်းပေးပါ။")
+        # AI Safety Trigger ဖြစ်ခဲ့လျှင်သော်လည်းကောင်း Exception ထဲ ရောက်သွားပါက အကြောင်းပြန်ရန်
+        await status_msg.edit_text(
+            "❌ ဒီပုံကို AI မှ စစ်ဆေး၍ မရပါ။ ကျေးဇူးပြု၍ PPG Post သို့မဟုတ် 'Forwarded from PPG' စာတန်း အပြည့်အစုံ ပါဝင်သော Screenshot ကို ပြန်လည် ပို့ပေးပါ။"
+        )
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
