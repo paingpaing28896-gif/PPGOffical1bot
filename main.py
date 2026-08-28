@@ -3,7 +3,6 @@ import logging
 import requests
 import io
 import time
-from PIL import Image, ImageEnhance
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -27,28 +26,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "မင်္ဂလာပါ! ကျွန်ုပ်တို့၏ PPG Post ကို Group/Channel များတွင် Share ထားသော Screenshot ပုံကို ပို့ပေးပါ။ စစ်ဆေးပေးပါမည်။"
     )
 
-def enhance_image_for_ocr(image_bytes):
-    """ မှောင်နေသော နောက်ခံမှ စာလုံးအသေးများကို OCR တိကျစွာ ဖတ်နိုင်အောင် ပုံကို ပြုပြင်ပေးခြင်း """
-    img = Image.open(io.BytesIO(image_bytes))
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-        
-    # ပုံကို ၃ ဆ ပိုကြီးအောင် Zoom ဆွဲခြင်း
-    width, height = img.size
-    img_resized = img.resize((width * 3, height * 3), Image.Resampling.LANCZOS)
-    
-    # Contrast တင်ပေးခြင်း
-    enhancer = ImageEnhance.Contrast(img_resized)
-    img_enhanced = enhancer.enhance(2.5)
-    
-    # Sharpness တင်ပေးခြင်း
-    sharpness = ImageEnhance.Sharpness(img_enhanced)
-    img_final = sharpness.enhance(2.5)
-    
-    output_io = io.BytesIO()
-    img_final.save(output_io, format='JPEG', quality=100)
-    return output_io.getvalue()
-
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text("Screenshot ထဲရှိ စာသားများကို စစ်ဆေးနေပါသည်...")
     
@@ -57,45 +34,39 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo_file = await update.message.photo[-1].get_file()
         image_bytes = await photo_file.download_as_bytearray()
         
-        # ပုံကို ပြတ်သားအောင် ပြုပြင်ခြင်း
-        processed_bytes = enhance_image_for_ocr(image_bytes)
-        
-        # OCR.space API သို့ ပို့ပေးခြင်း
+        # OCR.space API သို့ စာလုံးဖတ်ရန် ပို့ပေးခြင်း (မူရင်းအတိုင်း)
         response = requests.post(
             'https://api.ocr.space/parse/image',
-            files={'filename.jpg': io.BytesIO(processed_bytes)},
+            files={'filename.jpg': io.BytesIO(image_bytes)},
             data={
                 'apikey': OCR_API_KEY,
                 'language': 'eng',
                 'isOverlayRequired': False,
-                'OCREngine': 2,
-                'scale': True,
-                'isTable': True
+                'detectOrientation': True,
+                'scale': True
             },
             timeout=30
         )
         
         result = response.json()
+        
+        # စာလုံးဖတ်ရှုရရှိသည့် ရလဒ်များ
         parsed_results = result.get('ParsedResults', [])
         detected_text = ""
         if parsed_results:
-            detected_text = parsed_results[0].get('ParsedText', '')
+            detected_text = parsed_results[0].get('ParsedText', '').upper()
             
         logging.info(f"Detected Text: {detected_text}")
-        text_upper = detected_text.upper()
         
-        # စာလုံး စစ်ဆေးခြင်း
-        keywords = ["PPG", "FORWARDED", "ADS", "P.P.G"]
-        is_matched = any(kw in text_upper for kw in keywords)
-
-        if is_matched:
-            # ၁ ယောက်ပဲ ဝင်လို့ရပြီး မိနစ် ၂၀ အကြာတွင် သက်တမ်းကုန်မည့် One-time Link ဖန်တီးခြင်း
-            expire_timestamp = int(time.time()) + 1200  
+        # 'PPG' စာတန်း ပါမပါ စစ်ဆေးခြင်း
+        if "PPG" in detected_text:
+            # မိနစ် ၂၀ သက်တမ်းရှိပြီး ၁ ယောက်ပဲ ဝင်လို့ရမည့် One-time Invite Link ဖန်တီးခြင်း
+            expire_timestamp = int(time.time()) + 1200  # ၁၂၀၀ စက္ကန့် = မိနစ် ၂၀
             
             single_use_link = await context.bot.create_chat_invite_link(
                 chat_id=CHANNEL_CHAT_ID,
-                member_limit=1,           
-                expire_date=expire_timestamp 
+                member_limit=1,           # လူ ၁ ယောက်သာ ဝင်ရောက်ခွင့်ပြုမည်
+                expire_date=expire_timestamp # သက်တမ်းကုန်မည့်အချိန်
             )
 
             await status_msg.edit_text(
@@ -107,17 +78,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await status_msg.edit_text(
-                "❌ PPG/PPG Ads Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG Ads' စာတန်း ပါရှိသည့် ပုံကို ပြန်လည် ပို့ပေးပါ။"
+                "❌ PPG Post ပါဝင်သော Screenshot မဟုတ်ပါ။ ကျေးဇူးပြု၍ 'PPG' သို့မဟုတ် 'Forwarded from PPG' စာတန်း ပါသော ပုံကို ပြန်လည် ပို့ပေးပါ။"
             )
             
     except Exception as e:
         logging.error(f"Error processing image: {e}")
-        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ (Bot ကို Channel တွင် Admin ခန့်ထားပြီး 'Add Users' Permission ပေးထားရန် လိုအပ်ပါသည်)")
+        await status_msg.edit_text("❌ စစ်ဆေးရာတွင် အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်။ (Bot ကို Channel တွင် Admin ခန့်ထားပြီး 'Add Users via Link' Permission ပေးထားရန် လိုအပ်ပါသည်)")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     
-    print("Bot is running with Channel ID & One-time Link...")
+    print("Bot is running with Dynamic One-time Link...")
     app.run_polling()
