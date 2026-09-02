@@ -12,7 +12,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # ----------------- မိမိ API Key များ ထည့်ရန် -----------------
 TELEGRAM_TOKEN = "8621496121:AAHx3Bxo9t20ZMHFZ1BfrzDt0cxkMFweTPk"
 OCR_SPACE_API_KEY = "K85121949688957"
-CHANNEL_CHAT_ID = "-1003790274194"
+CHANNEL_CHAT_ID = "-1004317280519"
 # -----------------------------------------------------------
 
 # Glitch မအိပ်သွားစေရန် Web Server သေးသေးလေး ဆောက်ခြင်း
