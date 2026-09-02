@@ -10,8 +10,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ----------------- မိမိ API Key များ ထည့်ရန် -----------------
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-OCR_SPACE_API_KEY = "YOUR_OCR_SPACE_API_KEY_HERE"
+TELEGRAM_TOKEN = "8621496121:AAHx3Bxo9t20ZMHFZ1BfrzDt0cxkMFweTPk"
+OCR_SPACE_API_KEY = "K85121949688957"
 CHANNEL_CHAT_ID = "-1003790274194"
 # -----------------------------------------------------------
 
